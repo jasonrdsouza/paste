@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en" ng-app="gaestebin">
+<head>
+    <meta charset="utf-8">
+    <title>Pastebin</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.1.0/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href='http://fonts.googleapis.com/css?family=Source+Code+Pro&subset=latin,latin-ext' type='text/css'>
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/styles/solarized_dark.min.css" type="text/css">
+    <link rel="stylesheet" href="/css/gaestebin.css" type="text/css">
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/angular.js/1.2.10/angular.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/angular.js/1.2.10/angular-resource.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/8.0/highlight.min.js"></script>
+    <script src="/js/gaestebin.js"></script>
+
+</head>
+<body ng-controller="PasteCtrl">
+<div id="content" class="container-fluid">
+<div ng-show="paste">
+    <div ng-hide="true" class="row">
+        <div class="col-md-2">
+            <h4>Paste URL</h4>
+        </div>
+        <div class="col-md-6">
+            <pre> {{baseUrl + '/' + paste.Id}} </pre>
+        </div>
+    </div>
+    <div class="row"><div class="col-md-10">
+      <pre><code ng-bind-html="paste.highlighted"></code></pre>
+    </div></div>
+    <div ng-show="paste.Title" class="row"><div class="col-md-10">
+        <p class="text-info"> {{paste.Title}} </p>
+    </div></div>
+    <div ng-show="paste.Email" class="row"><div class="col-md-10">
+        <p class="text-info"> Pasted by {{paste.Email}} on {{paste.Timestamp|date:'medium'}} </p>
+    </div></div>
+    <div class="row"><div class="col-md-4">
+        <button type="button" class="btn btn-primary" ng-click="resetPaste()"><span class="glyphicon glyphicon-plus"></span> New Paste</button>
+        <button ng-show="paste.IsOwner" type="button" class="btn btn-primary" ng-click="deletePaste()"><span class="glyphicon glyphicon-trash"></span> Delete Paste</button>
+    </div></div>
+</div>
+
+<div ng-show="showForm()">
+    <div class="row"><div class="col-md-8">
+    <form ng-submit="newPaste()" role="form">
+      <div class="form-group">
+        <textarea autofocus class="form-control" ng-model="pasteContent" spellcheck="false" rows="30" autofocus placeholder="Paste here"></textarea>
+    </div>
+      <div class="form-group">
+        <input class="form-control" type="text" ng-model="pasteTitle" spellcheck="false" placeholder="Optional title"></input>
+    </div>
+      <div class="form-group">
+          <button type="submit" class="btn btn-primary"><span class="glyphicon glyphicon-floppy-save"></span> Paste it!</button>
+    </div>
+    </form>
+</div>
+</div>
+</body>
+</html>
