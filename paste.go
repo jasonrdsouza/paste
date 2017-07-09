@@ -68,14 +68,8 @@ func (handler PasteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			err := datastore.Get(c, key, &paste)
 			// If not found, try again with a query for v1 pastes
 			if err != nil {
-				q := datastore.NewQuery("Paste").Filter("id =", pasteId)
-				var pastes []Paste
-				_, err := q.GetAll(c, &pastes)
-				if err != nil || len(pastes) == 0 {
-					http.Error(w, "Paste not found", http.StatusNotFound)
-					return
-				}
-				paste = pastes[0]
+				http.Error(w, "Paste not found", http.StatusNotFound)
+				return
 			}
 			item := &memcache.Item{Key: pasteId, Object: paste}
 			memcache.JSON.Set(c, item)
@@ -162,7 +156,11 @@ func (handler PasteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func GenerateRandomString(length int) string {
-	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyz"
+	// Remove characters that are difficult to disambiguate.
+	// Depending on the font various pairs of letters and numbers can be confused
+	// - O looks like 0
+	// - i looks like l looks like 1 looks like I looks like L
+	const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789abcdefghjkmnopqrstuvwxyz"
 	rand.Seed(time.Now().Unix())
 	str := make([]string, length)
 	for i := 0; i < length; i++ {
