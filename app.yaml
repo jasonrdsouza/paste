@@ -8,10 +8,13 @@ handlers:
 - url: /css
   static_dir: css
 
-- url: /paste/.*
+- url: /fonts
+  static_dir: fonts
+
+- url: /update/.*
   script: _go_app
+  login: required
 
 - url: /.*
-  static_files: index.html
-  upload: index\.html
-  login: required
+  script: _go_app
+

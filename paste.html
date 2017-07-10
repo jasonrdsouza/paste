@@ -20,25 +20,11 @@
   <body>
     <div class="container">
 
-      <h2 class="header grey-text">Submit a Paste</h2>
-      <div class="row">
-        <form class="col s12" method="post" action="/update/">
-          <div class="row">
-            <div class="input-field col s6">
-              <input id="title" type="text" name="title" data-length="50">
-              <label for="title">Title</label>
-            </div>
-          </div>
-          <div class="row">
-            <div class="input-field col s12">
-              <textarea id="contents" name="contents" class="materialize-textarea" data-length="10000"></textarea>
-              <label for="contents">Contents</label>
-            </div>
-          </div>
-          <button class="btn waves-effect waves-light" type="submit">Submit
-            <i class="material-icons right">send</i>
-          </button>
-        </form>
+      <h2 class="header grey-text">{{ .Title }}</h2>
+      <div class="flow-text z-depth-3">
+        <pre><code>
+{{ .Content }}
+        </code></pre>
       </div>
 
     </div> <!-- /container -->

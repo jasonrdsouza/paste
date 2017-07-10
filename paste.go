@@ -1,7 +1,7 @@
 package paste
 
 import (
-	"encoding/json"
+	"html/template"
 	"math/rand"
 	"net/http"
 	"regexp"
@@ -15,8 +15,16 @@ import (
 )
 
 func init() {
-	http.Handle("/paste/", new(PasteHandler))
+	http.HandleFunc("/update/", updateHandler)
+	http.HandleFunc("/archive/", archiveHandler)
+	http.HandleFunc("/", rootHandler)
 }
+
+var indexTemplate = template.Must(template.ParseFiles("index.html"))
+var pasteTemplate = template.Must(template.ParseFiles("paste.html"))
+var archiveTemplate = template.Must(template.ParseFiles("archive.html"))
+
+var pasteIdRegex = regexp.MustCompile(`/([^/]+)`)
 
 type Paste struct {
 	// Generated
@@ -28,80 +36,29 @@ type Paste struct {
 	// Optional/Best-effort
 	Title    string `datastore:"title"`
 	Language string `datastore:"language"`
-	// Used for deletes, not persisted
-	IsOwner bool `datastore:"-"`
 }
 
-// Handler for Paste API
-type PasteHandler struct {
-}
-
-func (handler PasteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func updateHandler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 	u := user.Current(c)
+
 	if u == nil {
 		c.Infof("%v Login required", appengine.RequestID(c))
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	// Regexp used to extract pasteId from URI path
-	idRegexp := regexp.MustCompile(`/paste/v1/([^/]+)`)
 	switch r.Method {
-	// GET /paste/<id>
-	case "GET":
-		// First extract the pasteId
-		match := idRegexp.FindStringSubmatch(r.URL.Path)
-		if match == nil {
-			http.Error(w, "No pasteId found, bad URL", http.StatusBadRequest)
-			return
-		}
-		pasteId := match[1]
+	case http.MethodPost:
 		var paste Paste
-		// First, lookup in memcache
-		_, err := memcache.JSON.Get(c, pasteId, &paste)
-		// If there's a miss, check in datastore
-		if err == memcache.ErrCacheMiss {
-			// First look up directly by pasteId for new pastes
-			key := datastore.NewKey(c, "Paste", pasteId, 0, nil)
-			err := datastore.Get(c, key, &paste)
-			// If not found, try again with a query for v1 pastes
-			if err != nil {
-				http.Error(w, "Paste not found", http.StatusNotFound)
-				return
-			}
-			item := &memcache.Item{Key: pasteId, Object: paste}
-			memcache.JSON.Set(c, item)
-			c.Infof("Adding %v to memcache", pasteId)
-		} else {
-			c.Infof("Found %v in memcache", pasteId)
-		}
-		paste.IsOwner = (paste.Email == u.Email)
-
-		// Send paste back as JSON
-		encoder := json.NewEncoder(w)
-		if err := encoder.Encode(&paste); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-	// POST /paste/ returns <id>
-	case "POST":
-		// Decode request
-		decoder := json.NewDecoder(r.Body)
-		var paste Paste
-		if err := decoder.Decode(&paste); err != nil {
-			c.Infof("Error decoding request %v", r)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// Assign id, timestamp, email
 		paste.Id = GenerateRandomString(8)
 		paste.Timestamp = time.Now()
 		paste.Email = u.Email
-		paste.IsOwner = (paste.Email == u.Email)
+
+		// Pull out title and contents
+		r.ParseForm()
+		paste.Title = r.Form["title"][0]
+		paste.Content = r.Form["contents"][0]
 
 		// Create a key using pasteId and save to datastore
 		key := datastore.NewKey(c, "Paste", paste.Id, 0, nil)
@@ -114,25 +71,17 @@ func (handler PasteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		item := &memcache.Item{Key: paste.Id, Object: paste}
 		memcache.JSON.Set(c, item)
 
-		// Send back the complete paste
-		encoder := json.NewEncoder(w)
-		if err := encoder.Encode(&paste); err != nil {
-			c.Infof(err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Redirect to the newly saved paste
+		http.Redirect(w, r, "/"+paste.Id, http.StatusFound)
+
+	case http.MethodDelete:
+		pasteId := extractId(r.URL.Path)
+		if pasteId == "" {
+			http.Error(w, "No paste id found, bad URL", http.StatusBadRequest)
 			return
 		}
 
-	// DELETE /paste/<id>
-	case "DELETE":
-		match := idRegexp.FindStringSubmatch(r.URL.Path)
-		if match == nil {
-			http.Error(w, "No pasteId found, bad URL", http.StatusBadRequest)
-			return
-		}
-		pasteId := match[1]
 		key := datastore.NewKey(c, "Paste", pasteId, 0, nil)
-
-		// Look up the paste to match user
 		var paste Paste
 		if err := datastore.Get(c, key, &paste); err != nil {
 			c.Infof(err.Error())
@@ -140,6 +89,7 @@ func (handler PasteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Make sure the user performing the delete owns the paste in question
 		if paste.Email != u.Email {
 			c.Infof("Bad owner")
 			http.Error(w, "Bad Owner", http.StatusForbidden)
@@ -153,6 +103,55 @@ func (handler PasteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		memcache.Delete(c, pasteId)
 	}
+}
+
+func archiveHandler(w http.ResponseWriter, r *http.Request) {
+	archiveTemplate.Execute(w, "First Paste")
+}
+
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	pasteId := extractId(r.URL.Path)
+	if pasteId != "" {
+		//testPaste := Paste{Id: "test", Content:"import pprint;pprint.pprint(zip(('Byte', 'KByte', 'MByte', 'GByte', 'TByte'), (1 << 10*i for i in xrange(5))))", Title: "Humanize Bytes", Language: "python"}
+
+		var paste Paste
+		// First, lookup in memcache
+		_, err := memcache.JSON.Get(c, pasteId, &paste)
+		// If there's a miss, check in datastore
+		if err == memcache.ErrCacheMiss {
+			key := datastore.NewKey(c, "Paste", pasteId, 0, nil)
+			err := datastore.Get(c, key, &paste)
+			if err != nil {
+				http.Error(w, "Paste not found", http.StatusNotFound)
+				return
+			}
+			item := &memcache.Item{Key: pasteId, Object: paste}
+			memcache.JSON.Set(c, item)
+			c.Infof("Adding %v to memcache", pasteId)
+		} else {
+			c.Infof("Found %v in memcache", pasteId)
+		}
+
+		pasteTemplate.Execute(w, paste)
+	} else {
+		// show index page
+		indexTemplate.Execute(w, nil)
+	}
+}
+
+func extractId(path string) string {
+	match := pasteIdRegex.FindStringSubmatch(path)
+	if match == nil {
+		return ""
+	}
+	return match[1]
 }
 
 func GenerateRandomString(length int) string {
