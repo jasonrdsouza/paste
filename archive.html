@@ -21,12 +21,11 @@
     <div class="container">
 
       <h2 class="header grey-text">Paste Archive</h2>
-      <div class="collection">
-        <a href="#!" class="collection-item">{{ . }}</a>
-        <a href="#!" class="collection-item">Second paste</a>
-        <a href="#!" class="collection-item">Third paste</a>
-        <a href="#!" class="collection-item">Fourth paste</a>
-      </div>
+      <ul class="collection">
+        {{ range . }}
+        <a href="/{{ .Id }}" class="collection-item">{{ .Title }} <div class="secondary-content grey-text">({{ .Email }})</div></a>
+        {{ end }}
+      </ul>
 
     </div> <!-- /container -->
 

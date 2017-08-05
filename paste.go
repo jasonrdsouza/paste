@@ -106,7 +106,17 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func archiveHandler(w http.ResponseWriter, r *http.Request) {
-	archiveTemplate.Execute(w, "First Paste")
+	ctx := appengine.NewContext(r)
+
+	q := datastore.NewQuery("Paste").Project("id", "title", "email").Order("-timestamp")
+	var pastes []Paste
+	_, err := q.GetAll(ctx, &pastes)
+	if err != nil {
+		ctx.Errorf("Running query: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	archiveTemplate.Execute(w, pastes)
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +129,6 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 	pasteId := extractId(r.URL.Path)
 	if pasteId != "" {
-		//testPaste := Paste{Id: "test", Content:"import pprint;pprint.pprint(zip(('Byte', 'KByte', 'MByte', 'GByte', 'TByte'), (1 << 10*i for i in xrange(5))))", Title: "Humanize Bytes", Language: "python"}
 
 		var paste Paste
 		// First, lookup in memcache
