@@ -84,20 +84,20 @@ func updateHandler(w http.ResponseWriter, r *http.Request) {
 		key := datastore.NewKey(c, "Paste", pasteId, 0, nil)
 		var paste Paste
 		if err := datastore.Get(c, key, &paste); err != nil {
-			c.Infof(err.Error())
+			c.Errorf("Fetching paste to delete: %v", err)
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 
 		// Make sure the user performing the delete owns the paste in question
 		if paste.Email != u.Email {
-			c.Infof("Bad owner")
-			http.Error(w, "Bad Owner", http.StatusForbidden)
+			c.Infof("User %v attempting to delete paste %v they do not own", u.Email, paste.Id)
+			http.Error(w, "Invalid deletion attempt... only paste owners can delete pastes", http.StatusForbidden)
 			return
 		}
 
 		if err := datastore.Delete(c, key); err != nil {
-			c.Infof(err.Error())
+			c.Errorf("Deleting paste: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
