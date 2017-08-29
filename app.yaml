@@ -11,10 +11,17 @@ handlers:
 - url: /fonts
   static_dir: fonts
 
+- url: /.well-known/acme-challenge/(.*)
+  mime_type: text/plain
+  static_files: acme-challenge/\1
+  upload: acme-challenge/.*
+
 - url: /update/.*
   script: _go_app
   login: required
+  secure: always
 
 - url: /.*
   script: _go_app
+  secure: always
 
